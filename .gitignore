@@ -1,0 +1,24 @@
+# Archivos de Visual Studio
+.vs/
+*.vcxproj.user
+*.VC.db
+*.suo
+*.log
+
+# Build outputs
+x64/
+Debug/
+Release/
+*.exe
+*.dll
+*.lib
+*.obj
+
+# Archivos temporales
+*.tiff
+*.png
+
+# Entornos Python (si usas uno)
+__pycache__/
+.env/
+.venv/
