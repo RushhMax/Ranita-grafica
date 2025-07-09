@@ -8,9 +8,22 @@
 
 using namespace std;
 
-
 string mascaras[] = { "brainMasks"
-
+"duodenumMasks",
+"eyeMasks",
+"eyeRetnaMasks",
+"eyeWhiteMasks",
+"heartMasks",
+"ileumMasks",
+"kidneyMasks",
+"lIntestineMasks",
+"liverMasks",
+"lungMasks",
+"muscleMasks",
+"nerveMasks",
+"skeletonMasks",
+"spleenMasks",
+"stomachMasks"
 };
 
 struct Punto3D {
