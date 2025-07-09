@@ -2,55 +2,48 @@
 #include <GLFW/glfw3.h>
 #include <opencv2/opencv.hpp>
 #include <iostream>
+#include <string>
+#include <vector>
+
+
+using namespace std;
+
+
+string mascaras[] = { "brainMasks"
+
+};
+
+struct Punto3D {
+	float x, y, z;
+};
 
 int main() {
-    if (!glfwInit()) {
-        std::cerr << "Error al iniciar GLFW\n";
-        return -1;
-    }
+    // C:\Users\rushe\Documents\Universidad\S7\Graphics\CS-GRAFICA\Laboratorio7\salida_pngs
+	string ruta_base = "C:/Users/rushe/Documents/Universidad/S7/Graphics/CS-GRAFICA/Laboratorio7/salida_pngs";
 
-    GLFWwindow* window = glfwCreateWindow(800, 600, "Reconstrucción 3D", nullptr, nullptr);
-    if (!window) {
-        std::cerr << "Error al crear ventana GLFW\n";
-        glfwTerminate();
-        return -1;
-    }
+	// Cargar las mascaras
+	string extension = "_frame_";
+	string extension2 = ".png";
+	for (const auto& mascara : mascaras) {
+		cout << "Procesando mascara: " << mascara << endl;
+		for (int i = 1; i <= 1; ++i) {
+            std::vector<Punto3D> puntos;
+			string ruta_img = ruta_base + "/" + mascara + extension + to_string(i) + extension2;
 
-    glfwMakeContextCurrent(window);
-    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
-        std::cerr << "Error al cargar funciones OpenGL con GLAD\n";
-        return -1;
-    }
-
-    std::cout << "OpenGL version: " << glGetString(GL_VERSION) << "\n";
-
-    while (!glfwWindowShouldClose(window)) {
-        glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
-        glfwSwapBuffers(window);
-        glfwPollEvents();
-    }
-
-    glfwTerminate();
-
-    // skeletonMasks.tiff
-    // Probar OpenCV"C:\Users\rushe\Documents\Universidad\S7\Graphics\CS-GRAFICA\Lab7\x64\Debug\resources\bloodMasks.tiff"
-    std::string ruta = "C:/Users/rushe/Documents/Universidad/S7/Graphics/CS-GRAFICA/Laboratorio7/resources/bloodMasks.tiff";
-    std::cout << "Cargando desde: " << ruta << std::endl;
-
-    cv::Mat img = cv::imread(ruta, cv::IMREAD_GRAYSCALE);
-
-    if (img.empty())
-        std::cerr << "Error cargando imagen TIFF desde: " << ruta << std::endl;
-    else
-        std::cout << "Imagen cargada: " << img.cols << "x" << img.rows << std::endl;
+			cout << "Leyendo imagen: " << ruta_img << endl;
+            cv::Mat img = cv::imread(ruta_img, cv::IMREAD_GRAYSCALE);
+            for (int y = 0; y < img.rows; ++y) {
+                for (int x = 0; x < img.cols; ++x) {
+                    if (img.at<uchar>(y, x) > 127) {
+						cout << "Punto encontrado en: " << x << ", " << y << endl;
+                        puntos.push_back({ (float)x, (float)(img.rows - y), (float)i });
+                    }
+                }
+            }
 
 
-    //cv::Mat img = cv::imread("C:/Users/rushe/Documents/Universidad/S7/Graphics/CS-GRAFICA/Lab7/x64/Debug/resources/skeletonMasks.tiff", cv::IMREAD_GRAYSCALE);
-//    if (!img.empty())
-//        std::cout << "Imagen TIFF cargada: " << img.cols << "x" << img.rows << "\n";
- //   else
-   //     std::cerr << "Error cargando imagen TIFF\n";
+		}
+	}
 
     return 0;
 }

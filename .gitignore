@@ -15,10 +15,11 @@ Release/
 *.obj
 
 # Archivos temporales
-*.tiff
+*
 *.png
 
 # Entornos Python (si usas uno)
 __pycache__/
 .env/
 .venv/
+"
