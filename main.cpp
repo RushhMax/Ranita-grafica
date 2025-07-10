@@ -1,4 +1,4 @@
-#include <glad/glad.h>
+﻿#include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <opencv2/opencv.hpp>
 #include <iostream>
@@ -8,22 +8,24 @@
 
 using namespace std;
 
-string mascaras[] = { "brainMasks"
-"duodenumMasks",
-"eyeMasks",
-"eyeRetnaMasks",
-"eyeWhiteMasks",
-"heartMasks",
-"ileumMasks",
-"kidneyMasks",
-"lIntestineMasks",
-"liverMasks",
-"lungMasks",
-"muscleMasks",
-"nerveMasks",
-"skeletonMasks",
-"spleenMasks",
-"stomachMasks"
+string mascaras[] = { 
+	"bloodMasks",
+	"BrainMasks",
+	"duodenumMasks",
+	"eyeMasks",
+	"eyeRetnaMasks",
+	"eyeWhiteMasks",
+	"heartMasks",
+	"ileumMasks",
+	"kidneyMasks",
+	"lIntestineMasks",
+	"liverMasks",
+	"lungMasks",
+	"muscleMasks",
+	"nerveMasks",
+	"skeletonMasks",
+	"spleenMasks",
+	"stomachMasks"
 };
 
 struct Punto3D {
@@ -32,16 +34,17 @@ struct Punto3D {
 
 int main() {
     // C:\Users\rushe\Documents\Universidad\S7\Graphics\CS-GRAFICA\Laboratorio7\salida_pngs
-	string ruta_base = "C:/Users/rushe/Documents/Universidad/S7/Graphics/CS-GRAFICA/Laboratorio7/salida_pngs";
-
+	//string ruta_base = "C:/Users/rushe/Documents/Universidad/S7/Graphics/CS-GRAFICA/Laboratorio7/salida_pngs";
+	string ruta_base = "C:\\Users\\rushe\\Documents\\Universidad\\S7\\Graphics\\CS-GRAFICA\\Laboratorio7\\salida_pngs";
+	//string ruta_base = "C:\\tmp";
 	// Cargar las mascaras
 	string extension = "_frame_";
 	string extension2 = ".png";
 	for (const auto& mascara : mascaras) {
 		cout << "Procesando mascara: " << mascara << endl;
-		for (int i = 1; i <= 1; ++i) {
+		for (int i = 1; i <= 136; ++i) {
             std::vector<Punto3D> puntos;
-			string ruta_img = ruta_base + "/" + mascara + extension + to_string(i) + extension2;
+			string ruta_img = ruta_base + "\\" + mascara + extension + to_string(i) + extension2;
 
 			cout << "Leyendo imagen: " << ruta_img << endl;
             cv::Mat img = cv::imread(ruta_img, cv::IMREAD_GRAYSCALE);
