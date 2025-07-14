@@ -1,16 +1,19 @@
-﻿#include <glad/glad.h>
+﻿#include "glad/glad.h"
 #include <GLFW/glfw3.h>
 #include <opencv2/opencv.hpp>
 #include <iostream>
 #include <string>
 #include <vector>
-#include <utility> // Para std::pair
+#include <utility> 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
 #include <fstream>
 #include <sstream>
+
+#include "marching_cubes_tables.h"
+
 
 using namespace std;
 
@@ -79,6 +82,9 @@ struct Punto3D {
     float r, g, b;
 };
 
+struct Vertex {
+    glm::vec3 position;
+};
 
 // ---- Shaders ----
 const char* vertexShaderSource = R"(
@@ -147,6 +153,103 @@ GLuint crearShaderProgram() {
     return shaderProgram;
 }
 
+// Interpolador de vértices
+glm::vec3 VertexInterp(float isoLevel, glm::vec3 p1, glm::vec3 p2, float valp1, float valp2) {
+    if (abs(isoLevel - valp1) < 0.00001) return p1;
+    if (abs(isoLevel - valp2) < 0.00001) return p2;
+    if (abs(valp1 - valp2) < 0.00001) return p1;
+    float mu = (isoLevel - valp1) / (valp2 - valp1);
+    return p1 + mu * (p2 - p1);
+}
+
+
+// Este esqueleto se puede refinar más adelante
+void MarchingCubes(const vector<vector<vector<uint8_t>>>& volumen,
+                   vector<Vertex>& vertices,
+                   vector<unsigned int>& indices,
+                   float isoLevel = 0.5f)
+{
+    int width = volumen[0][0].size();
+    int height = volumen[0].size();
+    int depth = volumen.size();
+
+    // ⚠️ Aquí es donde se recorrerán todos los cubos 2x2x2 del volumen.
+    // Por ahora, démosle una estructura simple que luego rellenaremos con la lógica real.
+    glm::vec3 vertexList[12];
+
+    for (int z = 0; z < depth - 1; ++z) {
+        for (int y = 0; y < height - 1; ++y) {
+            for (int x = 0; x < width - 1; ++x) {
+
+                float cubeVal[8];
+                glm::vec3 cubePos[8];
+
+                // 8 vértices del cubo
+                for (int i = 0; i < 8; ++i) {
+                    int dx = i & 1;
+                    int dy = (i & 2) >> 1;
+                    int dz = (i & 4) >> 2;
+                    cubeVal[i] = volumen[z + dz][y + dy][x + dx];
+                    cubePos[i] = glm::vec3(x + dx, y + dy, z + dz);
+                }
+
+                // Determinar el índice del cubo en la tabla
+                int cubeIndex = 0;
+                for (int i = 0; i < 8; ++i)
+                    if (cubeVal[i] > isoLevel) cubeIndex |= (1 << i);
+
+                int edges = edgeTable[cubeIndex];
+                if (edges == 0) continue;
+
+                // Interpolar los vértices sobre las aristas
+                if (edges & 1)
+                    vertexList[0] = VertexInterp(isoLevel, cubePos[0], cubePos[1], cubeVal[0], cubeVal[1]);
+                if (edges & 2)
+                    vertexList[1] = VertexInterp(isoLevel, cubePos[1], cubePos[2], cubeVal[1], cubeVal[2]);
+                if (edges & 4)
+                    vertexList[2] = VertexInterp(isoLevel, cubePos[2], cubePos[3], cubeVal[2], cubeVal[3]);
+                if (edges & 8)
+                    vertexList[3] = VertexInterp(isoLevel, cubePos[3], cubePos[0], cubeVal[3], cubeVal[0]);
+                if (edges & 16)
+                    vertexList[4] = VertexInterp(isoLevel, cubePos[4], cubePos[5], cubeVal[4], cubeVal[5]);
+                if (edges & 32)
+                    vertexList[5] = VertexInterp(isoLevel, cubePos[5], cubePos[6], cubeVal[5], cubeVal[6]);
+                if (edges & 64)
+                    vertexList[6] = VertexInterp(isoLevel, cubePos[6], cubePos[7], cubeVal[6], cubeVal[7]);
+                if (edges & 128)
+                    vertexList[7] = VertexInterp(isoLevel, cubePos[7], cubePos[4], cubeVal[7], cubeVal[4]);
+                if (edges & 256)
+                    vertexList[8] = VertexInterp(isoLevel, cubePos[0], cubePos[4], cubeVal[0], cubeVal[4]);
+                if (edges & 512)
+                    vertexList[9] = VertexInterp(isoLevel, cubePos[1], cubePos[5], cubeVal[1], cubeVal[5]);
+                if (edges & 1024)
+                    vertexList[10] = VertexInterp(isoLevel, cubePos[2], cubePos[6], cubeVal[2], cubeVal[6]);
+                if (edges & 2048)
+                    vertexList[11] = VertexInterp(isoLevel, cubePos[3], cubePos[7], cubeVal[3], cubeVal[7]);
+
+                // Crear triángulos
+                for (int i = 0; triTable[cubeIndex][i] != -1; i += 3) {
+                    int i0 = vertices.size();
+                    vertices.push_back({ vertexList[triTable[cubeIndex][i]] });
+                    vertices.push_back({ vertexList[triTable[cubeIndex][i + 1]] });
+                    vertices.push_back({ vertexList[triTable[cubeIndex][i + 2]] });
+
+                    indices.push_back(i0);
+                    indices.push_back(i0 + 1);
+                    indices.push_back(i0 + 2);
+                }
+            }
+        }
+    }
+
+    cout << "[INFO] Total de vértices generados: " << vertices.size() << endl;
+    cout << "[INFO] Total de triángulos generados: " << indices.size() / 3 << endl;
+
+
+
+}
+
+
 int main() {
     if (!glfwInit()) {
 		cerr << "Error - INICIALIZAR GLFW" << endl;
@@ -176,7 +279,7 @@ int main() {
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_PROGRAM_POINT_SIZE);
 
-	string ruta_base = "C:\\Users\\rushe\\Documents\\Universidad\\S7\\Graphics\\CS-GRAFICA\\Laboratorio7\\salida_pngs";
+	string ruta_base = "ImgsFormateo/salida_pngs";
 	string extension = "_frame_";
 	string extension2 = ".png";
 
@@ -188,7 +291,7 @@ int main() {
 		cout << "Procesando mascara: " << mascara << endl;
 
 		for (int i = 1; i <= 136; ++i) {
-			string ruta_img =  ruta_base + "\\" + mascara + extension + to_string(i) + extension2;
+			string ruta_img =  ruta_base + "/" + mascara + extension + to_string(i) + extension2;
 
 			//cout << "Leyendo imagen: " << ruta_img << endl;
             cv::Mat img = cv::imread(ruta_img, cv::IMREAD_GRAYSCALE);
@@ -207,23 +310,65 @@ int main() {
 
 	cout << "Puntos totales: " << puntos_totales.size() << endl;
 
-    GLuint VAO, VBO;
-	glGenVertexArrays(1, &VAO);
-	glGenBuffers(1, &VBO);
+    // --- PASO 1: Crear volumen 3D binario ---
+    const int VOLUME_WIDTH = 512;   // tamaño x
+    const int VOLUME_HEIGHT = 512;  // tamaño y
+    const int VOLUME_DEPTH = 136;   // tamaño z (frames)
+
+    vector<vector<vector<uint8_t>>> volumen(
+        VOLUME_DEPTH,
+        vector<vector<uint8_t>>(VOLUME_HEIGHT, vector<uint8_t>(VOLUME_WIDTH, 0))
+    );
+
+    // Rellenar el volumen
+    for (const auto& p : puntos_totales) {
+        int x = static_cast<int>(p.x);
+        int y = static_cast<int>(p.y);
+        int z = static_cast<int>(p.z);
+        if (x >= 0 && x < VOLUME_WIDTH &&
+            y >= 0 && y < VOLUME_HEIGHT &&
+            z >= 0 && z < VOLUME_DEPTH)
+        {
+            volumen[z][y][x] = 1;
+        } else {
+            cout << "[WARNING] Punto fuera del volumen: (" << x << "," << y << "," << z << ")" << endl;
+        }
+
+    }
+
+    // --- PASO 2: Generar malla con Marching Cubes ---
+    vector<Vertex> vertices;
+    vector<unsigned int> indices;
+    MarchingCubes(volumen, vertices, indices);
+    //cout << "[INFO_main] Total de vértices generados: " << vertices.size() << endl;
+    //cout << "[INFO_main] Total de triángulos generados: " << indices.size() / 3 << endl;
+
+
+
+    GLuint VAO, VBO, EBO;
+    glGenVertexArrays(1, &VAO);
+    glGenBuffers(1, &VBO);
+    glGenBuffers(1, &EBO);
 
     glBindVertexArray(VAO);
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, puntos_totales.size() * sizeof(Punto3D), puntos_totales.data(), GL_STATIC_DRAW);
 
+    // Vértices
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(Vertex), vertices.data(), GL_STATIC_DRAW);
+
+    // Índices
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), indices.data(), GL_STATIC_DRAW);
+
+    // Layout de atributos
     glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Punto3D), (void*)0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)0);
+
     glBindVertexArray(0);
+
 
     // Shaders
     GLuint shaderProgram = crearShaderProgram();
-
-    // Matrices
-    glm::mat4 model = glm::scale(glm::mat4(1.0f), glm::vec3(0.5f)); // escala a la mitad
 
     // Interaccion
     glfwSetMouseButtonCallback(ventana, mouse_button_callback);
@@ -265,12 +410,13 @@ int main() {
         glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(proj));
 
         glBindVertexArray(VAO);
-        glDrawArrays(GL_POINTS, 0, puntos_totales.size());
+        glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, 0);
 
         glfwSwapBuffers(ventana);
     }
 
     glDeleteBuffers(1, &VBO);
+    glDeleteBuffers(1, &EBO);
     glDeleteVertexArrays(1, &VAO);
     glDeleteProgram(shaderProgram);
     glfwDestroyWindow(ventana);

@@ -1,10 +1,10 @@
 from PIL import Image
 import os
 
-# Carpeta con los archivos TIFF de entrada
-input_folder = 'resources'
-# Carpeta donde se guardarán las imágenes PNG resultantes
-output_folder = 'salida_pngs'
+script_dir = os.path.dirname(os.path.abspath(__file__))
+input_folder = os.path.join(script_dir, 'imagenT')
+output_folder = os.path.join(script_dir, 'salida_pngs')
+
 
 # Crear carpeta de salida si no existe
 os.makedirs(output_folder, exist_ok=True)
