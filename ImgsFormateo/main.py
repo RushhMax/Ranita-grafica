@@ -1,18 +1,24 @@
 from PIL import Image
 import os
+import zipfile
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
-input_folder = os.path.join(script_dir, 'imagenT')
+zip_path = os.path.join(script_dir, 'imagenT.zip')
+temp_extract_folder = os.path.join(script_dir, 'temp_imgs')  # Carpeta temporal
 output_folder = os.path.join(script_dir, 'salida_pngs')
 
-
-# Crear carpeta de salida si no existe
+# Crear carpetas si no existen
+os.makedirs(temp_extract_folder, exist_ok=True)
 os.makedirs(output_folder, exist_ok=True)
 
-# Procesar todos los archivos .tiff o .tif en la carpeta
-for filename in os.listdir(input_folder):
+# Descomprimir ZIP
+with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+    zip_ref.extractall(temp_extract_folder)
+
+# Procesar los archivos TIFF extraídos
+for filename in os.listdir(temp_extract_folder):
     if filename.lower().endswith(('.tif', '.tiff')):
-        tiff_path = os.path.join(input_folder, filename)
+        tiff_path = os.path.join(temp_extract_folder, filename)
         base_name = os.path.splitext(filename)[0]
 
         try:
