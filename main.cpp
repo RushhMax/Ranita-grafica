@@ -208,6 +208,7 @@ void MarchingCubes(const vector<vector<vector<uint8_t>>>& volumen,
                    vector<unsigned int>& indices,
                    float isoLevel = 0.5f)
 {
+    // Determina el tamaño del volumen 3D (ancho, alto, profundidad
     int width = volumen[0][0].size();
     int height = volumen[0].size();
     int depth = volumen.size();
@@ -215,6 +216,7 @@ void MarchingCubes(const vector<vector<vector<uint8_t>>>& volumen,
     glm::vec3 vertexList[12];
     glm::vec3 colorList[12];
 
+    // Recorrer el volumen por cada cubo 2x2x2
     for (int z = 0; z < depth - 1; ++z) {
         for (int y = 0; y < height - 1; ++y) {
             for (int x = 0; x < width - 1; ++x) {
@@ -409,7 +411,7 @@ int main() {
     }
     int VOLUME_WIDTH = maxX + 1;
     int VOLUME_HEIGHT = maxY + 1;
-    int VOLUME_DEPTH = maxZ + 1;
+    int VOLUME_DEPTH = maxZ*2 + 1;
 
 
     vector<vector<vector<uint8_t>>> volumen(
@@ -431,7 +433,11 @@ int main() {
             z >= 0 && z < VOLUME_DEPTH)
         {
             volumen[z][y][x] = 1;
-            volumen_color[z][y][x] = p.color; // Asignar color al punto
+            volumen[z + 1][y][x] = 1;  // duplicación en z
+
+            volumen_color[z][y][x] = p.color;
+            volumen_color[z + 1][y][x] = p.color;
+
         } else {
             cout << "[WARNING] Punto fuera del volumen: (" << x << "," << y << "," << z << ")" << endl;
         }
