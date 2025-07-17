@@ -92,7 +92,7 @@ string mascaras[] = {
     "lIntestineMasks",// Máscaras de intestino grueso  
     "liverMasks",     // Máscaras de hígado  
     "lungMasks",      // Máscaras de pulmón  
-    //"muscleMasks",    // Máscaras de músculo  
+    "muscleMasks",    // Máscaras de músculo  
     "nerveMasks",     // Máscaras de nervio  
     "skeletonMasks",  // Máscaras de esqueleto  
     "spleenMasks",    // Máscaras de bazo  
