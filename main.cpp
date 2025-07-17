@@ -8,15 +8,12 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
-
 #include <fstream>
 #include <sstream>
 
 #include "marching_cubes_tables.h"
 
-
 using namespace std;
-
 
 // VARIABLES DE MOVIMIENTO 
 bool mousePressed = false;
@@ -57,28 +54,25 @@ void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
 }
 
 glm::vec3 mascara_colors[] = {
-    {1, 0, 0},       // bloodMasks: Máscaras de sangre - rojo
-    {0, 1, 0},       // BrainMasks: Máscaras de cerebro - verde
-    {0, 0, 1},       // duodenumMasks: Máscaras de duodeno - azul
-    {1, 1, 0},       // eyeMasks: Máscaras de ojo - amarillo
-    {1, 0, 1},       // eyeRetnaMasks: Máscaras de retina del ojo - magenta
-    {1, 1, 1},       // eyeWhiteMasks: Máscaras de esclerótica (parte blanca del ojo) - blanco
-    {1, 0.5, 0},     // heartMasks: Máscaras de corazón - naranja
-    {0.5, 0, 1},     // ileumMasks: Máscaras de íleon - violeta
-    {0.5, 1, 0},     // kidneyMasks: Máscaras de riñón - verde lima
-    {0, 0.5, 1},     // lIntestineMasks: Máscaras de intestino grueso - azul celeste
-    {1, 0.2, 0.8},   // liverMasks: Máscaras de hígado - rosado fuerte
-    {0.2, 1, 0.8},   // lungMasks: Máscaras de pulmón - verde aguamarina
-    {0.8, 0.8, 0.2}, // muscleMasks: Máscaras de músculo - amarillo mostaza
-    {0.8, 0.2, 0.8}, // nerveMasks: Máscaras de nervio - púrpura claro
-    {0.2, 0.8, 0.8}, // skeletonMasks: Máscaras de esqueleto - celeste verdoso
-    {0.3, 0.7, 0.2}, // spleenMasks: Máscaras de bazo - verde musgo
-    {0.9, 0.4, 0.1}, // stomachMasks: Máscaras de estómago - naranja quemado
-
+    {0.95, 0.3, 0.5},     // bloodMasks: Sangre - rojo rosado fuerte
+    {0.8, 0.9, 1.0},      // brainMasks: Cerebro - azul muy claro (relajante, suave)
+    {1.0, 0.8, 0.6},      // duodenumMasks: Duodeno - durazno claro
+    {1.0, 1.0, 1.0},     // eyeMasks: Ojo - blanco azulado (más visible que blanco puro)
+    {1.0, 0.6, 0.8},      // eyeRetinaMasks: Retina - rosa pastel
+    {0.95, 0.95, 0.95},   // eyeWhiteMasks: Esclerótica - gris claro muy pálido (más visible que blanco puro)
+    {1.0, 0.3, 0.3},      // heartMasks: Corazón - rojo brillante suave
+    {0.9, 0.75, 0.6},     // ileumMasks: Íleon - beige durazno
+    {0.7, 0.4, 0.5},      // kidneyMasks: Riñón - vino suave
+    {0.6, 0.8, 1.0},      // lIntestineMasks: Intestino grueso - celeste pastel
+    {1.0, 0.6, 0.7},      // liverMasks: Hígado - rosado rojizo
+    {0.6, 0.9, 0.9},      // lungMasks: Pulmón - aguamarina pastel
+    {0.9, 0.7, 0.5},      // muscleMasks: Músculo - salmón claro
+    {0.9, 0.85, 0.5},     // nerveMasks: Nervio - amarillo pastel
+    {0.96, 0.92, 0.85},   // skeletonMasks: Hueso - marfil
+    {0.85, 0.4, 0.5},     // spleenMasks: Bazo - rojo vino pastel
+    {1.0, 0.5, 0.3},      // stomachMasks: Estómago - naranja salmón
 };
 
-
-// ---- Variables globales ----
 string mascaras[] = {
     "bloodMasks",       // Máscaras de sangre  
     "BrainMasks",       // Máscaras de cerebro  
@@ -88,11 +82,11 @@ string mascaras[] = {
     "eyeWhiteMasks",  // Máscaras de esclerótica (parte blanca del ojo)  
     "heartMasks",     // Máscaras de corazón  
     "ileumMasks",     // Máscaras de íleon (parte del intestino delgado)  
-    "kidneyMasks",    // Máscaras de riñón  
+    "kidneyMasks",    // Máscaras de riñón   
     "lIntestineMasks",// Máscaras de intestino grueso  
     "liverMasks",     // Máscaras de hígado  
     "lungMasks",      // Máscaras de pulmón  
-    "muscleMasks",    // Máscaras de músculo  
+    //"muscleMasks",    // Máscaras de músculo  
     "nerveMasks",     // Máscaras de nervio  
     "skeletonMasks",  // Máscaras de esqueleto  
     "spleenMasks",    // Máscaras de bazo  
@@ -116,34 +110,58 @@ const char* vertexShaderSource = R"(
 layout(location = 0) in vec3 aPos;
 layout(location = 1) in vec3 aNormal;
 layout(location = 2) in vec3 aColor;
-out vec3 ourColor;
+
+out vec3 FragPos;
+out vec3 Normal;
+out vec3 Color;
 
 uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
 
 void main() {
-    gl_Position = projection * view * model * vec4(aPos, 1.0);
-    gl_PointSize = 1;
-    ourColor = aColor;
+    FragPos = vec3(model * vec4(aPos, 1.0));
+    Normal = mat3(transpose(inverse(model))) * aNormal;
+    Color = aColor;
+
+    gl_Position = projection * view * vec4(FragPos, 1.0);
 }
 )";
 
+
 const char* fragmentShaderSource = R"(
 #version 330 core
-in vec3 ourColor;
+in vec3 FragPos;
+in vec3 Normal;
+in vec3 Color;
+
 out vec4 FragColor;
 
-void main(){
-	//FragColor = vec4(1.0, 0.0, 0.0, 1.0); // Color rojo
-	//FragColor = vec4(0.0, 1.0, 0.0, 1.0); // Color verde
-	//FragColor = vec4(0.0, 0.0, 1.0, 1.0); // Color azul
-	//FragColor = vec4(1.0, 1.0, 1.0, 1.0); // Color blanco
-	//FragColor = vec4(1.0, 1.0, 0.0, 1.0); // Color amarillo
-	//FragColor = vec4(1.0, 165/255.0f, 0/255.0f, 1.0); // Color naranja
-	//FragColor = vec4(128/255.0f, 128/255.0f, 128/255.0f, 1.0); // Color gris
-    FragColor = vec4(ourColor, 1.0);
+uniform vec3 lightPos;
+uniform vec3 viewPos;
+
+void main() {
+    // Ambient
+    float ambientStrength = 0.2;
+    vec3 ambient = ambientStrength * Color;
+
+    // Diffuse
+    vec3 norm = normalize(Normal);
+    vec3 lightDir = normalize(lightPos - FragPos);
+    float diff = max(dot(norm, lightDir), 0.0);
+    vec3 diffuse = diff * Color;
+
+    // Specular
+    float specularStrength = 0.5;
+    vec3 viewDir = normalize(viewPos - FragPos);
+    vec3 reflectDir = reflect(-lightDir, norm);  
+    float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32);
+    vec3 specular = specularStrength * spec * vec3(1.0);  
+
+    vec3 result = ambient + diffuse + specular;
+    FragColor = vec4(result, 1.0);
 }
+
 )";
 
 GLuint crearShaderProgram() {
@@ -206,7 +224,7 @@ void MarchingCubes(const vector<vector<vector<uint8_t>>>& volumen,
                    const vector<vector<vector<glm::vec3>>>& volumen_color,
                    vector<Vertex>& vertices,
                    vector<unsigned int>& indices,
-                   float isoLevel = 0.5f)
+                   float isoLevel = 0.9f)
 {
     // Determina el tamaño del volumen 3D (ancho, alto, profundidad
     int width = volumen[0][0].size();
@@ -306,42 +324,50 @@ void MarchingCubes(const vector<vector<vector<uint8_t>>>& volumen,
             }
         }
     }
-
     cout << "[INFO] Total de vértices generados: " << vertices.size() << endl;
     cout << "[INFO] Total de triángulos generados: " << indices.size() / 3 << endl;
-
-
 }
 
 
 void calcularNormales(std::vector<Vertex>& vertices, const std::vector<unsigned int>& indices) {
     // Limpiar normales
     for (auto& v : vertices)
-        v.normal = glm::vec3(0.0f);
-
-    // Recorrer cada triángulo
+        if (glm::length(v.normal) > 0.0f)
+            v.normal = glm::normalize(v.normal);    
+    
+    // Paso 2: Recorrer cada triángulo y acumular normales
     for (size_t i = 0; i < indices.size(); i += 3) {
-        Vertex& v0 = vertices[indices[i]];
-        Vertex& v1 = vertices[indices[i + 1]];
-        Vertex& v2 = vertices[indices[i + 2]];
+        // Obtener índices de los vértices del triángulo
+        unsigned int i0 = indices[i];
+        unsigned int i1 = indices[i + 1];
+        unsigned int i2 = indices[i + 2];
 
-        glm::vec3 edge1 = v1.position - v0.position;
-        glm::vec3 edge2 = v2.position - v0.position;
-        glm::vec3 normal = glm::normalize(glm::cross(edge1, edge2));
+        // Obtener posiciones de los vértices
+        const glm::vec3& p0 = vertices[i0].position;
+        const glm::vec3& p1 = vertices[i1].position;
+        const glm::vec3& p2 = vertices[i2].position;
 
-        v0.normal += normal;
-        v1.normal += normal;
-        v2.normal += normal;
+        // Calcular la normal del triángulo
+        glm::vec3 edge1 = p1 - p0;
+        glm::vec3 edge2 = p2 - p0;
+        glm::vec3 triangleNormal = glm::normalize(glm::cross(edge1, edge2));
+
+        // Acumular normal a cada vértice
+        vertices[i0].normal += triangleNormal;
+        vertices[i1].normal += triangleNormal;
+        vertices[i2].normal += triangleNormal;
     }
 
-    // Normalizar
-    for (auto& v : vertices)
-        v.normal = glm::normalize(v.normal);
+    // Paso 3: Normalizar las normales por vértice (evita dividir vectores nulos)
+    for (auto& v : vertices) {
+        if (glm::length(v.normal) > 0.0f)
+            v.normal = glm::normalize(v.normal);
+    }
+
 }
 
-
-
 int main() {
+	// Inicializar GLFW y GLAD
     if (!glfwInit()) {
 		cerr << "Error - INICIALIZAR GLFW" << endl;
         return -1;
@@ -362,36 +388,31 @@ int main() {
 	glfwMakeContextCurrent(ventana); // Hacer el contexto actual
 	gladLoadGLLoader((GLADloadproc)glfwGetProcAddress); // Cargar funciones de OpenGL
     
-    // Interaccion
+	// INTERACCION DE USUARIO
     glfwSetMouseButtonCallback(ventana, mouse_button_callback);
     glfwSetCursorPosCallback(ventana, cursor_position_callback);
     glfwSetScrollCallback(ventana, scroll_callback);
 
+	// CONFIGURACION DE VENTANA
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_PROGRAM_POINT_SIZE);
 
+	// --- Cargar imágenes y procesar puntos ---
 	string ruta_base = "ImgsFormateo/salida_pngs";
 	string extension = "_frame_";
 	string extension2 = ".png";
 
-	map<int, vector<Punto3D>> puntos_map_totales;
 	vector<Punto3D> puntos_totales;
 
 	int mascara_index = 1;
 	for (const auto& mascara : mascaras) {
 		cout << "Procesando mascara: " << mascara << endl;
-
 		for (int i = 1; i <= 136; ++i) {
 			string ruta_img =  ruta_base + "/" + mascara + extension + to_string(i) + extension2;
-
-			//cout << "Leyendo imagen: " << ruta_img << endl;
             cv::Mat img = cv::imread(ruta_img, cv::IMREAD_GRAYSCALE);
             for (int y = 0; y < img.rows; ++y) {
                 for (int x = 0; x < img.cols; ++x) {
                     if (img.at<uchar>(y, x) > 127) {
-						//cout << "Punto encontrado en: " << x << ", " << y << endl;
-				
-						//puntos_totales.push_back({ static_cast<float>(x), static_cast<float>(y), static_cast<float>(i) });
                         puntos_totales.push_back({ static_cast<float>(x), static_cast<float>(y), static_cast<float>(i), mascara_colors[mascara_index - 1] });
                     }
                 }
@@ -411,8 +432,7 @@ int main() {
     }
     int VOLUME_WIDTH = maxX + 1;
     int VOLUME_HEIGHT = maxY + 1;
-    int VOLUME_DEPTH = maxZ*2 + 1;
-
+    int VOLUME_DEPTH = maxZ + 1;
 
     vector<vector<vector<uint8_t>>> volumen(
         VOLUME_DEPTH,
@@ -433,15 +453,10 @@ int main() {
             z >= 0 && z < VOLUME_DEPTH)
         {
             volumen[z][y][x] = 1;
-            volumen[z + 1][y][x] = 1;  // duplicación en z
-
             volumen_color[z][y][x] = p.color;
-            volumen_color[z + 1][y][x] = p.color;
-
         } else {
             cout << "[WARNING] Punto fuera del volumen: (" << x << "," << y << "," << z << ")" << endl;
         }
-
     }
 
     // --- PASO 2: Generar malla con Marching Cubes ---
@@ -449,8 +464,6 @@ int main() {
     vector<unsigned int> indices;
     MarchingCubes(volumen, volumen_color, vertices, indices);
     calcularNormales(vertices, indices);
-    //cout << "[INFO_main] Total de vértices generados: " << vertices.size() << endl;
-    //cout << "[INFO_main] Total de triángulos generados: " << indices.size() / 3 << endl;
 
     GLuint VAO, VBO, EBO;
     glGenVertexArrays(1, &VAO);
@@ -476,11 +489,9 @@ int main() {
     glEnableVertexAttribArray(1);
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(sizeof(glm::vec3)));
 
-        // color
+    // color
     glEnableVertexAttribArray(2);
     glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(2 * sizeof(glm::vec3)));
-
-
 
     // Shaders
     GLuint shaderProgram = crearShaderProgram();
@@ -490,15 +501,17 @@ int main() {
     glfwSetCursorPosCallback(ventana, cursor_position_callback);
     glfwSetScrollCallback(ventana, scroll_callback);
 
-    //glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);  // para dibujar superficies sólidas
-    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);  // esto dibuja solo bordes de triángulos (rejilla)
+    glDisable(GL_CULL_FACE);
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);  // para dibujar superficies sólidas
+    //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);  // esto dibuja solo bordes de triángulos (rejilla)
 
     // Render loop
     while (!glfwWindowShouldClose(ventana)) {
+		// Manejo de eventos, actualización de cámara y renderizado
         glfwPollEvents();
-        glClearColor(0.1f, 0.1f, 0.15f, 1.0f);
+        glClearColor(0.05f, 0.05f, 0.1f, 1.0f); 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        glUseProgram(shaderProgram);  // ¡Antes de enviar las matrices!
+        glUseProgram(shaderProgram); 
 
         glm::mat4 model = glm::mat4(1.0f);
         model = glm::translate(model, glm::vec3(translateX, translateY, 0.0f)); // Movimiento con mouse
@@ -507,14 +520,13 @@ int main() {
         model = glm::scale(model, glm::vec3(zoom)); // Zoom
         model = glm::translate(model, glm::vec3(-128.0f, -128.0f, -68.0f)); // Centrado
 
+		// Posición de la cámara
         glm::vec3 modeloCentro(128.0f, 128.0f, 68.0f);
-
         glm::vec3 camaraPos = modeloCentro + glm::vec3(0, 0, 500); // cámara detrás del modelo
         glm::vec3 camaraFrente = modeloCentro;                       // mira al centro
         glm::vec3 camaraArriba = glm::vec3(0, 1, 0);                 // eje Y hacia arriba
-
+		// Matriz de vista
         glm::mat4 view = glm::lookAt(camaraPos, camaraFrente, camaraArriba);
-
 
         glm::mat4 proj = glm::perspective(glm::radians(60.0f), ancho / float(alto), 0.1f, 2000.0f);
 
