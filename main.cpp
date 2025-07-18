@@ -1,7 +1,9 @@
 ﻿#include "glad/glad.h"
 #include <GLFW/glfw3.h>
 #include <opencv2/opencv.hpp>
+#include <glm/glm.hpp>
 #include <iostream>
+#include <fstream>
 #include <string>
 #include <vector>
 #include <glm/glm.hpp>
@@ -51,26 +53,23 @@ glm::vec3 mascara_colors[] = {
     {0.85, 0.4, 0.5},     // spleenMasks: Bazo - rojo vino pastel
     {1.0, 0.5, 0.3},      // stomachMasks: Estómago - naranja salmón
 };
-
 vector<bool> mascara_activa(mascaras.size(), true);
 
 void printMascaraStatus() {
     cout << "\n======= Estado de las máscaras =======" << endl;
     for (size_t i = 0; i < mascara_activa.size(); ++i)
         cout << "[" << (char)((i<9)?('1'+i):('a'+i-9)) << "] "
-             << mascaras[i] << ": " << (mascara_activa[i] ? "ON" : "OFF") << endl;
+            << mascaras[i] << ": " << (mascara_activa[i] ? "ON" : "OFF") << endl;
     cout << "[r] Recargar malla con las máscaras actuales" << endl;
     cout << "======================================" << endl << endl;
 }
 
-// ================== VARIABLES DE MOVIMIENTO ======================
 bool mousePressed = false;
 double lastX = 0.0, lastY = 0.0;
 float yaw = 0.0f, pitch = 0.0f;
 float translateX = 0.0f, translateY = 0.0f;
 float zoom = 1.0f;
 
-// ================== CALLBACKS DE INTERACTIVIDAD ==================
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
     if (button == GLFW_MOUSE_BUTTON_LEFT) {
         if (action == GLFW_PRESS) {
@@ -98,7 +97,6 @@ void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
     zoom = std::max(0.1f, zoom);
 }
 
-// ================== ESTRUCTURAS ======================
 struct Punto3D {
     float x, y, z;
     glm::vec3 color;
@@ -109,62 +107,28 @@ struct Vertex {
     glm::vec3 color = glm::vec3(1.0f, 1.0f, 1.0f);
 };
 
-// ================== SHADERS ======================
 const char* vertexShaderSource = R"(
 #version 330 core
 layout(location = 0) in vec3 aPos;
 layout(location = 1) in vec3 aNormal;
 layout(location = 2) in vec3 aColor;
-
-out vec3 FragPos;
-out vec3 Normal;
-out vec3 Color;
-
+out vec3 ourColor;
 uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
-
 void main() {
-    FragPos = vec3(model * vec4(aPos, 1.0));
-    Normal = mat3(transpose(inverse(model))) * aNormal;
-    Color = aColor;
-    gl_Position = projection * view * vec4(FragPos, 1.0);
+    gl_Position = projection * view * model * vec4(aPos, 1.0);
+    ourColor = aColor;
 }
 )";
 const char* fragmentShaderSource = R"(
 #version 330 core
-in vec3 FragPos;
-in vec3 Normal;
-in vec3 Color;
-
+in vec3 ourColor;
 out vec4 FragColor;
-
-uniform vec3 lightPos;
-uniform vec3 viewPos;
-
-void main() {
-    // Ambient
-    float ambientStrength = 0.2;
-    vec3 ambient = ambientStrength * Color;
-
-    // Diffuse
-    vec3 norm = normalize(Normal);
-    vec3 lightDir = normalize(lightPos - FragPos);
-    float diff = max(dot(norm, lightDir), 0.0);
-    vec3 diffuse = diff * Color;
-
-    // Specular
-    float specularStrength = 0.5;
-    vec3 viewDir = normalize(viewPos - FragPos);
-    vec3 reflectDir = reflect(-lightDir, norm);  
-    float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32);
-    vec3 specular = specularStrength * spec * vec3(1.0);  
-
-    vec3 result = ambient + diffuse + specular;
-    FragColor = vec4(result, 1.0);
+void main(){
+    FragColor = vec4(ourColor, 1.0);
 }
 )";
-
 GLuint crearShaderProgram() {
     GLint success;
     char infoLog[512];
@@ -197,7 +161,6 @@ GLuint crearShaderProgram() {
     glDeleteShader(fragmentShader);
     return shaderProgram;
 }
-
 glm::vec3 VertexInterp(float isoLevel, glm::vec3 p1, glm::vec3 p2, float valp1, float valp2) {
     if (abs(isoLevel - valp1) < 0.00001) return p1;
     if (abs(isoLevel - valp2) < 0.00001) return p2;
@@ -212,11 +175,11 @@ glm::vec3 ColorInterp(float isoLevel, glm::vec3 c1, glm::vec3 c2, float valp1, f
     float mu = (isoLevel - valp1) / (valp2 - valp1);
     return c1 + mu * (c2 - c1);
 }
-void MarchingCubes(const vector<vector<vector<uint8_t>>>& volumen,
+void MarchingCubes(const vector<vector<vector<float>>>& volumen,
                    const vector<vector<vector<glm::vec3>>>& volumen_color,
                    vector<Vertex>& vertices,
                    vector<unsigned int>& indices,
-                   float isoLevel = 0.9f)
+                   float isoLevel = 0.4f)
 {
     int width = volumen[0][0].size();
     int height = volumen[0].size();
@@ -307,27 +270,48 @@ void calcularNormales(std::vector<Vertex>& vertices, const std::vector<unsigned 
     for (auto& v : vertices)
         v.normal = glm::vec3(0.0f);
     for (size_t i = 0; i < indices.size(); i += 3) {
-        unsigned int i0 = indices[i];
-        unsigned int i1 = indices[i + 1];
-        unsigned int i2 = indices[i + 2];
-        const glm::vec3& p0 = vertices[i0].position;
-        const glm::vec3& p1 = vertices[i1].position;
-        const glm::vec3& p2 = vertices[i2].position;
-        glm::vec3 edge1 = p1 - p0;
-        glm::vec3 edge2 = p2 - p0;
-        glm::vec3 triangleNormal = glm::normalize(glm::cross(edge1, edge2));
-        vertices[i0].normal += triangleNormal;
-        vertices[i1].normal += triangleNormal;
-        vertices[i2].normal += triangleNormal;
+        Vertex& v0 = vertices[indices[i]];
+        Vertex& v1 = vertices[indices[i + 1]];
+        Vertex& v2 = vertices[indices[i + 2]];
+        glm::vec3 edge1 = v1.position - v0.position;
+        glm::vec3 edge2 = v2.position - v0.position;
+        glm::vec3 normal = glm::normalize(glm::cross(edge1, edge2));
+        v0.normal += normal;
+        v1.normal += normal;
+        v2.normal += normal;
     }
     for (auto& v : vertices)
-        if (glm::length(v.normal) > 0.0f)
-            v.normal = glm::normalize(v.normal);
+        v.normal = glm::normalize(v.normal);
 }
 
-// ================== MENÚ Y RECARGA EN TIEMPO REAL ===================
-vector< vector<Punto3D> > puntos_por_mascara;
+// Gaussian Blur 3D para suavizar el volumen
+void gaussianBlur3D(vector<vector<vector<float>>>& vol, int iter = 1) {
+    int Z = vol.size(), Y = vol[0].size(), X = vol[0][0].size();
+    vector<vector<vector<float>>> temp = vol;
+    float kernel[3][3][3] = {
+        {{1,2,1},{2,4,2},{1,2,1}},
+        {{2,4,2},{4,8,4},{2,4,2}},
+        {{1,2,1},{2,4,2},{1,2,1}},
+    };
+    float ksum = 0;
+    for(int i=0;i<3;i++)for(int j=0;j<3;j++)for(int k=0;k<3;k++)ksum+=kernel[i][j][k];
+    int dz[] = {-1,0,1}, dy[] = {-1,0,1}, dx[] = {-1,0,1};
+    for (int it = 0; it < iter; ++it) {
+        for (int z = 1; z < Z-1; ++z)
+        for (int y = 1; y < Y-1; ++y)
+        for (int x = 1; x < X-1; ++x) {
+            float v = 0;
+            for (int dzk=0; dzk<3; ++dzk)
+            for (int dyk=0; dyk<3; ++dyk)
+            for (int dxk=0; dxk<3; ++dxk)
+                v += temp[z+dz[dzk]][y+dy[dyk]][x+dx[dxk]] * kernel[dzk][dyk][dxk];
+            vol[z][y][x] = v / ksum;
+        }
+        temp = vol;
+    }
+}
 
+vector< vector<Punto3D> > puntos_por_mascara;
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
     if (action == GLFW_PRESS) {
         for (size_t i = 0; i < mascara_activa.size(); ++i) {
@@ -383,7 +367,6 @@ int main() {
             string ruta_img =  ruta_base + "/" + mascara + extension + to_string(i) + extension2;
             cv::Mat img = cv::imread(ruta_img, cv::IMREAD_GRAYSCALE);
             if (img.empty()) continue;
-            // Si quieres filtro especial para alguna máscara, ponlo aquí
             for (int y = 0; y < img.rows; ++y) {
                 for (int x = 0; x < img.cols; ++x) {
                     if (img.at<uchar>(y, x) > 127) {
@@ -396,9 +379,7 @@ int main() {
 
     printMascaraStatus();
 
-    // =============== CICLO PRINCIPAL: solo combinamos las máscaras activas ============
     while (true) {
-        // Combinar puntos de las máscaras activas
         vector<Punto3D> puntos_totales;
         for (size_t mi = 0; mi < mascaras.size(); ++mi)
             if (mascara_activa[mi])
@@ -416,8 +397,8 @@ int main() {
         int VOLUME_HEIGHT = maxY + 1;
         int VOLUME_DEPTH = maxZ + 1;
 
-        vector<vector<vector<uint8_t>>> volumen(
-            VOLUME_DEPTH, vector<vector<uint8_t>>(VOLUME_HEIGHT, vector<uint8_t>(VOLUME_WIDTH, 0))
+        vector<vector<vector<float>>> volumen(
+            VOLUME_DEPTH, vector<vector<float>>(VOLUME_HEIGHT, vector<float>(VOLUME_WIDTH, 0.0f))
         );
         vector<vector<vector<glm::vec3>>> volumen_color(
             VOLUME_DEPTH, vector<vector<glm::vec3>>(VOLUME_HEIGHT, vector<glm::vec3>(VOLUME_WIDTH, glm::vec3(0)))
@@ -430,15 +411,19 @@ int main() {
                 y >= 0 && y < VOLUME_HEIGHT &&
                 z >= 0 && z < VOLUME_DEPTH)
             {
-                volumen[z][y][x] = 1;
+                volumen[z][y][x] = 1.0f;
                 volumen_color[z][y][x] = p.color;
             }
         }
 
-        // --- PASO 2: Generar malla con Marching Cubes ---
+        // --- PASO 2: Suavizado 3D antes de Marching Cubes ---
+        gaussianBlur3D(volumen, 1); // 1 iteración, ajusta si quieres más suave
+
+        // --- PASO 3: Generar malla con Marching Cubes ---
         vector<Vertex> vertices;
         vector<unsigned int> indices;
-        MarchingCubes(volumen, volumen_color, vertices, indices);
+        MarchingCubes(volumen, volumen_color, vertices, indices, 0.4f); // isoLevel bajo para malla sólida
+
         calcularNormales(vertices, indices);
 
         GLuint VAO, VBO, EBO;
@@ -464,11 +449,10 @@ int main() {
         glDisable(GL_CULL_FACE);
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
-        // Render loop
         bool recargar = false;
         while (!glfwWindowShouldClose(ventana)) {
             glfwPollEvents();
-            if (glfwWindowShouldClose(ventana) == 2) { // señal especial
+            if (glfwWindowShouldClose(ventana) == 2) {
                 glfwSetWindowShouldClose(ventana, 0);
                 recargar = true;
                 break;
@@ -495,21 +479,14 @@ int main() {
             glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
             glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
             glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(proj));
-
-            // Luz y cámara para Phong
-            GLuint lightPosLoc = glGetUniformLocation(shaderProgram, "lightPos");
-            GLuint viewPosLoc = glGetUniformLocation(shaderProgram, "viewPos");
-            glUniform3f(lightPosLoc, 128.0f, 128.0f, 200.0f);
-            glUniform3f(viewPosLoc, camaraPos.x, camaraPos.y, camaraPos.z);
-
             glBindVertexArray(VAO);
             glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, 0);
-
             glfwSwapBuffers(ventana);
         }
         glDeleteBuffers(1, &VBO);
         glDeleteBuffers(1, &EBO);
         glDeleteVertexArrays(1, &VAO);
+
         if (!recargar) break;
     }
     glDeleteProgram(shaderProgram);
